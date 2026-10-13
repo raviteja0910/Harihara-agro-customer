@@ -4,13 +4,13 @@ export async function POST(req: Request) {
   try {
     const { amount, orderId, customerName, customerPhone, customerEmail } = await req.json();
 
-    const response = await fetch('https://sandbox.cashfree.com/pg/orders', {
+    const response = await fetch('https://api.cashfree.com/pg/orders', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-client-id': process.env.CASHFREE_APP_ID!,
-        'x-client-secret': process.env.CASHFREE_SECRET_KEY!,
-        'x-api-version': '2026-01-01',
+        'x-client-id': process.env.CASHFREE_APP_ID || '',
+        'x-client-secret': process.env.CASHFREE_SECRET_KEY || '',
+        'x-api-version': '2023-08-01',
       },
       body: JSON.stringify({
         order_amount: amount,
