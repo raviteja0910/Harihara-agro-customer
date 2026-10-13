@@ -11,7 +11,7 @@ import { supabase } from '@/lib/supabase';
 
 const MapPicker = dynamic(() => import('../components/MapPicker'), {
   ssr: false,
-  loading: () => <div className="w-full h-48 flex items-center justify-center bg-gray-100 text-gray-500 text-sm">Loading Map...</div>
+  loading: () => <div className="w-full h-[280px] flex items-center justify-center bg-gray-100 text-gray-500 text-sm">Loading Map...</div>
 });
 
 type Product = {
@@ -24,9 +24,9 @@ type Product = {
 };
 
 const initialProducts: Product[] = [
-  { id: 'premium', tier: 'PREMIUM', name: 'Deep Gold Double', price: 100, image: 'https://images.unsplash.com/photo-1699764681875-dd04ce36b1c3?crop=entropy&cs=tinysrgb&fit=crop&fm=jpg&q=85&w=900', inStock: true },
+  { id: 'premium', tier: 'PREMIUM', name: 'Deep Gold Double', price: 95, image: 'https://images.unsplash.com/photo-1699764681875-dd04ce36b1c3?crop=entropy&cs=tinysrgb&fit=crop&fm=jpg&q=85&w=900', inStock: true },
   { id: 'medium', tier: 'MEDIUM', name: 'Bright Orange', price: 80, image: 'https://images.unsplash.com/photo-1572711330402-3e16e1ee2ad3?crop=entropy&cs=tinysrgb&fit=crop&fm=jpg&q=85&w=900', inStock: true },
-  { id: 'standard', tier: 'STANDARD', name: 'Yellow Marigold', price: 90, image: 'https://images.unsplash.com/photo-1709987632881-515bb5a53227?w=900&auto=format&fit=crop&q=60&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxzZWFyY2h8MjB8fG1hcmlnb2xkJTIwZmxvd2VyfGVufDB8fDB8fHww', inStock: true },
+  { id: 'standard', tier: 'STANDARD', name: 'Yellow Marigold', price: 95, image: 'https://images.unsplash.com/photo-1709987632881-515bb5a53227?w=900&auto=format&fit=crop&q=60&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxzZWFyY2h8MjB8fG1hcmlnb2xkJTIwZmxvd2VyfGVufDB8fDB8fHww', inStock: true },
 ];
 
 export default function BookingFlow() {
@@ -894,36 +894,15 @@ const handleGoogleSignIn = async () => {
               <div className="flex flex-col gap-1 mb-4">
                 <label className="text-xs font-bold text-gray-500 uppercase tracking-wider ml-1">Location Pin</label>
                 <div className="mb-2 p-2 bg-yellow-50 border-l-4 border-yellow-400 text-yellow-800 text-sm font-semibold">📍 Action Required: Please drag the pin to your exact delivery location.</div>
-                <div className="relative w-full h-48 rounded-xl overflow-hidden border border-gray-200 shadow-sm mt-2">
+                <div className="relative w-full rounded-xl overflow-hidden border border-gray-200 shadow-sm mt-2">
                   <MapPicker
                     position={formData.coordinates}
                     setPosition={(pos: [number, number]) => {
                       setFormData(prev => ({ ...prev, coordinates: pos }));
                       setHasInteractedWithMap(true);
                     }}
+                    onSetLocation={() => setHasInteractedWithMap(true)}
                   />
-                  <button
-                    type="button"
-                    onClick={handleLocateMe}
-                    className="absolute bottom-3 right-3 z-[9999] flex items-center justify-center w-10 h-10 bg-white rounded-full shadow-md text-[#1F3822] hover:text-[#D98310] hover:bg-gray-50 transition-colors border border-gray-100"
-                    aria-label="Use my current location"
-                  >
-                    {isLocating ? (
-                      <Loader2 className="w-5 h-5 animate-spin" />
-                    ) : (
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        strokeWidth={2}
-                        stroke="currentColor"
-                        className="w-5 h-5"
-                      >
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z" />
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z" />
-                      </svg>
-                    )}
-                  </button>
                 </div>
               </div>
 
