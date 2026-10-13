@@ -312,43 +312,41 @@ const handleGoogleSignIn = async () => {
     nextStep();
   };
 
-  const handleCashfreePayment = async () => {
-    setIsSubmitting(true);
-    try {
-      if (!user) {
-        alert("Must be logged in to order.");
-        return;
-      }
+  const handleCashfreePayment = async (e: any) => {
+    e.preventDefault(); // Prevents any form submission bugs
 
+    try {
       const res = await fetch('/api/cashfree', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          amount: totalAmount,
-          orderId: `ORDER_${Date.now()}`,
-          customerName: formData.fullName || user.user_metadata?.full_name || 'Customer',
-          customerPhone: formData.phone || '9999999999',
-          customerEmail: user.email || 'customer@hariharaagro.com',
-        }),
+        body: JSON.stringify({ amount: totalAmount, orderId: currentOrderId }),
       });
 
-      const data = await res.json();
-      if (!res.ok || data.error) {
-        throw new Error(data.error || data.message || 'Error creating Cashfree payment session');
+      const orderData = await res.json();
+
+      // If Cashfree authentication fails, it will alert the exact error
+      if (orderData.error) {
+        alert(`Cashfree Error: ${orderData.error}`);
+        return;
       }
 
-      const cashfree = await load({ mode: 'sandbox' });
-      if (cashfree && data.payment_session_id) {
+      if (orderData.payment_session_id) {
+        const cashfree = await load({ mode: "production" }); // Use "sandbox" only if using test keys
+
         cashfree.checkout({
-          paymentSessionId: data.payment_session_id,
-          redirectTarget: '_self',
+          paymentSessionId: orderData.payment_session_id,
+          redirectTarget: "_modal", 
+        }).then(async (result: any) => {
+          if (result.error) {
+            console.log("Payment cancelled");
+          } else if (result.paymentDetails) {
+            const { error } = await supabase.from('orders').update({ order_status: 'Paid' }).eq('id', currentOrderId);
+            if (!error) alert("Payment Successful!");
+          }
         });
       }
-    } catch (error: any) {
-      console.error('Cashfree payment error:', error);
-      alert(error.message || 'Payment initiation failed. Please try again.');
-    } finally {
-      setIsSubmitting(false);
+    } catch (error) {
+      console.error("Payment error:", error);
     }
   };
 

@@ -15,7 +15,7 @@ export async function POST(req: Request) {
       body: JSON.stringify({
         order_amount: amount,
         order_currency: 'INR',
-        order_id: orderId,
+        order_id: orderId || `ORDER_${Date.now()}`,
         customer_details: {
           customer_id: customerPhone || 'GUEST',
           customer_phone: customerPhone || '9999999999',
