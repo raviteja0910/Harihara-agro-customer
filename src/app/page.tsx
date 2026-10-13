@@ -122,11 +122,11 @@ export default function BookingFlow() {
   const [hasConfirmedPayment, setHasConfirmedPayment] = useState(false);
 
   const cartTotal = products.reduce((acc, p) => acc + (p.price * (cart[p.id] || 0)), 0);
+  const totalAmount = cartTotal;
   const totalWeight = products.reduce((acc, p) => acc + (cart[p.id] || 0), 0);
 
-  const UPI_ID = "6304693028-3@ibl";
-  const PAYEE_NAME = "Harihara Agro Farm";
-  const upiString = encodeURI(`upi://pay?pa=6304693028-3@ibl&pn=Harihara Agro Farm&am=${cartTotal}&cu=INR`);
+  const merchantUpiId = "BHARATPE2W0N0D8M6M17206@unitype";
+  const upiString = `upi://pay?pa=${merchantUpiId}&pn=Harihara%20Agro%20Farm&am=${totalAmount}&cu=INR`;
 
   const updateCart = (id: string, qty: number) => {
     setCart(prev => {
@@ -1007,16 +1007,16 @@ const handleGoogleSignIn = async () => {
                         key="upi-box" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
                         className="flex flex-col items-center w-full"
                       >
-                        <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 flex justify-center mt-2">
-                          <img src={"https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=" + upiString} alt="UPI QR Code" className="w-[180px] h-[180px]" />
+                        <div className="flex flex-col items-center justify-center p-4 bg-white rounded-lg shadow-sm border border-gray-200">
+                          <p className="mb-4 text-sm font-semibold text-gray-700">Scan to pay ₹{totalAmount}</p>
+                          <QRCode value={upiString} size={200} />
                         </div>
-                        <p className="text-xs text-gray-500 text-center mt-2 mb-4">Scan with any UPI app</p>
 
                         <a
                           href={upiString}
-                          className="mb-6 flex items-center justify-center w-full py-3 bg-[#1F3822] text-white rounded-lg font-medium shadow-md hover:bg-[#152718] transition-colors"
+                          className="mt-4 mb-6 flex items-center justify-center w-full py-3 bg-[#1F3822] text-white rounded-lg font-medium shadow-md hover:bg-[#152718] transition-colors"
                         >
-                          Pay ₹{cartTotal.toLocaleString()} via UPI App
+                          Pay ₹{totalAmount.toLocaleString()} via UPI App
                         </a>
 
                         <label className="flex items-start space-x-3 p-3 bg-yellow-50 border border-yellow-200 rounded-lg mb-4 cursor-pointer text-left w-full">
