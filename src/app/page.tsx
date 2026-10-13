@@ -331,7 +331,7 @@ const handleGoogleSignIn = async () => {
       }
 
       if (orderData.payment_session_id) {
-        const cashfree = await load({ mode: "production" }); // Use "sandbox" only if using test keys
+        const cashfree = await load({ mode: "sandbox" });
 
         cashfree.checkout({
           paymentSessionId: orderData.payment_session_id,
