@@ -1,11 +1,11 @@
 'use client';
 
+import { load } from "@cashfreepayments/cashfree-js";
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Menu, Plus, Minus, Check, ShieldCheck, ArrowRight, ArrowLeft, X, Eye, EyeOff, Search, Package, Loader2 } from 'lucide-react';
 import dynamic from 'next/dynamic';
 import Image from 'next/image';
-import QRCode from 'react-qr-code';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
 
@@ -310,6 +310,46 @@ const handleGoogleSignIn = async () => {
       return;
     }
     nextStep();
+  };
+
+  const handleCashfreePayment = async () => {
+    setIsSubmitting(true);
+    try {
+      if (!user) {
+        alert("Must be logged in to order.");
+        return;
+      }
+
+      const res = await fetch('/api/cashfree', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          amount: totalAmount,
+          orderId: `ORDER_${Date.now()}`,
+          customerName: formData.fullName || user.user_metadata?.full_name || 'Customer',
+          customerPhone: formData.phone || '9999999999',
+          customerEmail: user.email || 'customer@hariharaagro.com',
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok || data.error) {
+        throw new Error(data.error || data.message || 'Error creating Cashfree payment session');
+      }
+
+      const cashfree = await load({ mode: 'sandbox' });
+      if (cashfree && data.payment_session_id) {
+        cashfree.checkout({
+          paymentSessionId: data.payment_session_id,
+          redirectTarget: '_self',
+        });
+      }
+    } catch (error: any) {
+      console.error('Cashfree payment error:', error);
+      alert(error.message || 'Payment initiation failed. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleConfirmOrder = async () => {
@@ -1007,9 +1047,14 @@ const handleGoogleSignIn = async () => {
                         key="upi-box" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
                         className="flex flex-col items-center w-full"
                       >
-                        <div className="flex flex-col items-center justify-center p-4 bg-white rounded-lg shadow-sm border border-gray-200">
-                          <p className="mb-4 text-sm font-semibold text-gray-700">Scan to pay ₹{totalAmount}</p>
-                          <QRCode value={upiString} size={200} />
+                        <div className="flex flex-col items-center justify-center p-6 bg-white rounded-lg shadow-sm border border-gray-200 mt-4">
+                          <p className="mb-4 text-sm font-bold text-gray-800">Total Amount: ₹{totalAmount}</p>
+                          <button 
+                            onClick={handleCashfreePayment} 
+                            className="w-full bg-indigo-600 text-white py-4 rounded-xl font-bold shadow-md hover:bg-indigo-700 transition-colors text-lg"
+                          >
+                            Pay securely via Cashfree
+                          </button>
                         </div>
 
                         <a
