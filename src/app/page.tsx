@@ -126,7 +126,7 @@ export default function BookingFlow() {
   const totalWeight = products.reduce((acc, p) => acc + (cart[p.id] || 0), 0);
 
   const merchantUpiId = "BHARATPE2W0N0D8M6M17206@unitype";
-  const upiString = `upi://pay?pa=${merchantUpiId}&pn=Harihara%20Agro%20Farm&am=${totalAmount}&cu=INR`;
+  const upiString = `upi://pay?pa=${merchantUpiId}&pn=Harihara%20Agro%20Farm&mc=5499&am=${totalAmount}&cu=INR`;
 
   const updateCart = (id: string, qty: number) => {
     setCart(prev => {
