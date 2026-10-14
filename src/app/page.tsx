@@ -83,18 +83,41 @@ export default function BookingFlow() {
     }
     return () => clearInterval(interval);
   }, [isVerifyingPayment, currentOrderId]);
-  // Handle return from Cashfree full-page redirect
+  // Auto-verify when Cashfree redirects back
   React.useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const params = new URLSearchParams(window.location.search);
-      const dbOrderId = params.get('db_order_id');
-      if (dbOrderId) {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    const cfOrderId = params.get('order_id');
+    const dbOrderId = params.get('db_order_id');
+
+    if (cfOrderId) {
+      const targetDbId = dbOrderId || (cfOrderId.startsWith('order_') ? cfOrderId.split('_')[1] : cfOrderId);
+      if (targetDbId) {
         setStep(4);
-        setCurrentOrderId(dbOrderId);
-        supabase.from('orders').select('*').eq('id', dbOrderId).single().then(({ data }) => {
+        setCurrentOrderId(targetDbId);
+        supabase.from('orders').select('*').eq('id', targetDbId).single().then(({ data }) => {
           if (data) setConfirmedOrder({ id: data.order_code || data.id, ...data });
         });
       }
+
+      fetch('/api/cashfree/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cfOrderId, dbOrderId }),
+      })
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.verified) {
+            // Clean the URL parameters after updating database
+            window.history.replaceState({}, '', window.location.pathname);
+            if (targetDbId) {
+              supabase.from('orders').select('*').eq('id', targetDbId).single().then(({ data: updatedOrder }) => {
+                if (updatedOrder) setConfirmedOrder({ id: updatedOrder.order_code || updatedOrder.id, ...updatedOrder });
+              });
+            }
+          }
+        })
+        .catch((err) => console.error('Verification error:', err));
     }
   }, []);
 
@@ -416,16 +439,19 @@ const handleGoogleSignIn = async () => {
 
       // OPTION 1: CASH ON DELIVERY
       if (paymentMethod === 'COD') {
-        if (activeOrderId) {
+        const targetId = activeOrderId || currentOrderId;
+        if (targetId) {
           const { error } = await supabase
             .from('orders')
-            .update({ order_status: 'Confirmed (COD)' })
-            .eq('id', activeOrderId);
+            .update({
+              payment_method: 'COD',
+              payment_status: 'pending',
+            })
+            .eq('id', targetId);
 
           if (error) throw error;
         }
         alert('Order Confirmed! Pay Cash on Delivery when you receive your harvest.');
-        // Trigger your success screen state here (e.g. setStep('success'))
         setStep(4);
         setCart({});
         setFormData({
