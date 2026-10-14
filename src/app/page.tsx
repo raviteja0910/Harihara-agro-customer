@@ -24,9 +24,9 @@ type Product = {
 };
 
 const initialProducts: Product[] = [
-  { id: 'premium', tier: 'PREMIUM', name: 'Deep Gold Double', price: 95, image: 'https://images.unsplash.com/photo-1699764681875-dd04ce36b1c3?crop=entropy&cs=tinysrgb&fit=crop&fm=jpg&q=85&w=900', inStock: true },
-  { id: 'medium', tier: 'MEDIUM', name: 'Bright Orange', price: 80, image: 'https://images.unsplash.com/photo-1572711330402-3e16e1ee2ad3?crop=entropy&cs=tinysrgb&fit=crop&fm=jpg&q=85&w=900', inStock: true },
-  { id: 'standard', tier: 'STANDARD', name: 'Yellow Marigold', price: 95, image: 'https://images.unsplash.com/photo-1709987632881-515bb5a53227?w=900&auto=format&fit=crop&q=60&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxzZWFyY2h8MjB8fG1hcmlnb2xkJTIwZmxvd2VyfGVufDB8fDB8fHww', inStock: true },
+  { id: 'premium', tier: 'PREMIUM', name: 'Deep Gold Double', price: 100, image: 'https://images.unsplash.com/photo-1699764681875-dd04ce36b1c3?crop=entropy&cs=tinysrgb&fit=crop&fm=jpg&q=85&w=900', inStock: true },
+  { id: 'medium', tier: 'MEDIUM', name: 'Bright Orange', price: 95, image: 'https://images.unsplash.com/photo-1572711330402-3e16e1ee2ad3?crop=entropy&cs=tinysrgb&fit=crop&fm=jpg&q=85&w=900', inStock: true },
+  { id: 'standard', tier: 'STANDARD', name: 'Yellow Marigold', price: 100, image: 'https://images.unsplash.com/photo-1709987632881-515bb5a53227?w=900&auto=format&fit=crop&q=60&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxzZWFyY2h8MjB8fG1hcmlnb2xkJTIwZmxvd2VyfGVufDB8fDB8fHww', inStock: true },
 ];
 
 export default function BookingFlow() {
@@ -83,6 +83,21 @@ export default function BookingFlow() {
     }
     return () => clearInterval(interval);
   }, [isVerifyingPayment, currentOrderId]);
+  // Handle return from Cashfree full-page redirect
+  React.useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const dbOrderId = params.get('db_order_id');
+      if (dbOrderId) {
+        setStep(4);
+        setCurrentOrderId(dbOrderId);
+        supabase.from('orders').select('*').eq('id', dbOrderId).single().then(({ data }) => {
+          if (data) setConfirmedOrder({ id: data.order_code || data.id, ...data });
+        });
+      }
+    }
+  }, []);
+
   const [formData, setFormData] = useState({
     fullName: '',
     phone: '',
@@ -92,7 +107,8 @@ export default function BookingFlow() {
     landmark: '',
     coordinates: [17.5144, 78.6472] as [number, number],
   });
-  const [paymentMethod, setPaymentMethod] = useState<'upi' | 'cod'>('upi');
+  const [paymentMethod, setPaymentMethod] = useState<'UPI' | 'COD'>('UPI');
+  const [isProcessing, setIsProcessing] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [confirmedOrder, setConfirmedOrder] = useState<any>(null);
 
@@ -284,7 +300,7 @@ const handleGoogleSignIn = async () => {
     return `${year}-${month}-${day}`;
   };
 
-  const handleProceedToStep3 = () => {
+  const handleProceedToStep3 = async () => {
     if (!hasInteractedWithMap) {
       window.alert("Please adjust or confirm your location on the map to ensure accurate delivery.");
       return;
@@ -309,55 +325,8 @@ const handleGoogleSignIn = async () => {
       alert("Please enter your House/Flat number and Street name.");
       return;
     }
-    nextStep();
-  };
-
-  const handleCashfreePayment = async (e: any) => {
-    e.preventDefault(); // Prevents any form submission bugs
 
     try {
-      const res = await fetch('/api/cashfree', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ amount: totalAmount, orderId: currentOrderId }),
-      });
-
-      const orderData = await res.json();
-
-      // If Cashfree authentication fails, it will alert the exact error
-      if (orderData.error) {
-        alert(`Cashfree Error: ${orderData.error}`);
-        return;
-      }
-
-      if (orderData.payment_session_id) {
-        const cashfree = await load({ mode: "production" });
-
-        cashfree.checkout({
-          paymentSessionId: orderData.payment_session_id,
-          redirectTarget: "_modal", 
-        }).then(async (result: any) => {
-          if (result.error) {
-            console.log("Payment cancelled");
-          } else if (result.paymentDetails) {
-            const { error } = await supabase.from('orders').update({ order_status: 'Paid' }).eq('id', currentOrderId);
-            if (!error) alert("Payment Successful!");
-          }
-        });
-      }
-    } catch (error) {
-      console.error("Payment error:", error);
-    }
-  };
-
-  const handleConfirmOrder = async () => {
-    setIsSubmitting(true);
-    try {
-      if (!user) {
-        alert("Must be logged in to order.");
-        return;
-      }
-
       const order_items = products
         .filter(p => (cart[p.id] || 0) > 0)
         .map(p => ({
@@ -368,8 +337,8 @@ const handleGoogleSignIn = async () => {
         }));
 
       const payload = {
-        user_id: user.id,
-        customer_email: user.email,
+        user_id: user?.id,
+        customer_email: user?.email,
         customer_name: formData.fullName || 'N/A',
         customer_phone: formData.phone || 'N/A',
         house_number: formData.houseNumber || 'N/A',
@@ -380,43 +349,140 @@ const handleGoogleSignIn = async () => {
         order_items: order_items,
         total_amount: Number(cartTotal),
         delivery_date: formData.date || getMinDate(),
-        payment_method: paymentMethod.toUpperCase(),
-        payment_status: 'pending'
+        payment_method: paymentMethod,
+        payment_status: 'pending',
+        order_status: 'Pending'
       };
 
-      console.log("Submitting payload:", payload);
-
       const { data, error } = await supabase.from('orders').insert(payload).select().single();
-
-      if (error) {
-        console.error("Insert Error:", error?.message || error, error?.details, error?.hint);
-        alert("Failed to submit order. Please try again.");
-      } else {
+      if (!error && data) {
+        setCurrentOrderId(data.id);
         setConfirmedOrder({ id: data.order_code || data.id, ...data });
-        if (paymentMethod === 'upi') {
-          setCurrentOrderId(data.id);
-          setIsVerifyingPayment(true);
-        } else {
-          setStep(4);
-          setCart({});
-          setFormData({
-            fullName: '',
-            phone: '',
-            date: '',
-            houseNumber: '',
-            streetName: '',
-            landmark: '',
-            coordinates: [17.5144, 78.6472],
-          });
-          setHasConfirmedPayment(false);
-          window.scrollTo(0, 0);
-        }
       }
     } catch (e) {
-      console.error(e);
-      alert("Failed to submit order.");
-    } finally {
-      setIsSubmitting(false);
+      console.error("Order creation error:", e);
+    }
+
+    nextStep();
+    window.scrollTo(0, 0);
+  };
+
+  const handleProceedPayment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsProcessing(true);
+
+    const customerName = formData.fullName || user?.user_metadata?.full_name || 'Harihara Customer';
+    const customerPhone = formData.phone || '9999999999';
+
+    try {
+      let activeOrderId = currentOrderId;
+
+      if (!activeOrderId) {
+        const order_items = products
+          .filter(p => (cart[p.id] || 0) > 0)
+          .map(p => ({
+            id: p.id,
+            name: p.name,
+            price: p.price,
+            quantity_kg: cart[p.id]
+          }));
+
+        const payload = {
+          user_id: user?.id,
+          customer_email: user?.email,
+          customer_name: customerName,
+          customer_phone: customerPhone,
+          house_number: formData.houseNumber || 'N/A',
+          street_name: formData.streetName || 'N/A',
+          landmark: formData.landmark || 'N/A',
+          delivery_lat: Number(formData.coordinates[0]),
+          delivery_lng: Number(formData.coordinates[1]),
+          order_items: order_items,
+          total_amount: Number(cartTotal),
+          delivery_date: formData.date || getMinDate(),
+          payment_method: paymentMethod,
+          payment_status: 'pending',
+          order_status: 'Pending'
+        };
+
+        const { data: newOrder, error: createError } = await supabase.from('orders').insert(payload).select().single();
+        if (createError) throw createError;
+        if (newOrder) {
+          activeOrderId = newOrder.id;
+          setCurrentOrderId(newOrder.id);
+          setConfirmedOrder({ id: newOrder.order_code || newOrder.id, ...newOrder });
+        }
+      }
+
+      // OPTION 1: CASH ON DELIVERY
+      if (paymentMethod === 'COD') {
+        if (activeOrderId) {
+          const { error } = await supabase
+            .from('orders')
+            .update({ order_status: 'Confirmed (COD)' })
+            .eq('id', activeOrderId);
+
+          if (error) throw error;
+        }
+        alert('Order Confirmed! Pay Cash on Delivery when you receive your harvest.');
+        // Trigger your success screen state here (e.g. setStep('success'))
+        setStep(4);
+        setCart({});
+        setFormData({
+          fullName: '',
+          phone: '',
+          date: '',
+          houseNumber: '',
+          streetName: '',
+          landmark: '',
+          coordinates: [17.5144, 78.6472],
+        });
+        window.scrollTo(0, 0);
+        setIsProcessing(false);
+        return;
+      }
+
+      // OPTION 2: UPI REDIRECT VIA CASHFREE (Exact flow from video 02:11 - 04:08)
+      const res = await fetch('/api/cashfree', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          amount: totalAmount,
+          orderId: activeOrderId,
+          customerName,
+          customerPhone,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok || data.error) {
+        alert(`Payment Error: ${data.error}`);
+        setIsProcessing(false);
+        return;
+      }
+
+      // Initialize Cashfree matching the exact environment that created the session ID
+      const cashfree = await load({ mode: data.environment });
+
+      const checkoutOptions = {
+        paymentSessionId: data.payment_session_id,
+        returnUrl: `${window.location.origin}/?order_id={order_id}&db_order_id=${activeOrderId}`,
+        // No redirectTarget needed: defaults to "_self" for full-page redirect
+      };
+
+      cashfree.checkout(checkoutOptions).then((result: any) => {
+        if (result.error) {
+          alert(result.error.message);
+          setIsProcessing(false);
+        }
+        if (result.redirect) {
+          console.log('Redirecting to Cashfree Checkout...');
+        }
+      });
+    } catch (err: any) {
+      alert(`Something went wrong: ${err.message}`);
+      setIsProcessing(false);
     }
   };
 
@@ -1015,92 +1081,69 @@ const handleGoogleSignIn = async () => {
 
               <div className="flex-1 bg-[#FAFAF7] rounded-t-3xl px-6 pt-8 pb-32">
 
-                <div className="flex bg-gray-200 p-1 rounded-xl mb-6">
+                <div className="w-full max-w-md mx-auto bg-white rounded-3xl p-6 shadow-sm border border-[#e8e4db]">
+                  {/* Segmented Toggle: UPI vs Cash on Delivery */}
+                  <div className="grid grid-cols-2 gap-1.5 p-1.5 bg-[#f3f4f6] rounded-2xl mb-6">
+                    <button
+                      type="button"
+                      onClick={() => setPaymentMethod('UPI')}
+                      className={`py-3 text-sm font-bold rounded-xl transition-all ${
+                        paymentMethod === 'UPI'
+                          ? 'bg-white text-[#18360c] shadow-sm'
+                          : 'text-gray-500 hover:text-gray-800'
+                      }`}
+                    >
+                      UPI Payment
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPaymentMethod('COD')}
+                      className={`py-3 text-sm font-bold rounded-xl transition-all ${
+                        paymentMethod === 'COD'
+                          ? 'bg-white text-[#18360c] shadow-sm'
+                          : 'text-gray-500 hover:text-gray-800'
+                      }`}
+                    >
+                      Cash on Delivery
+                    </button>
+                  </div>
+
+                  {/* Clean Summary Box */}
+                  <div className="bg-[#fcfaf5] border border-[#ece6d8] rounded-2xl p-6 text-center mb-6">
+                    <p className="text-xs font-bold tracking-widest text-gray-400 uppercase mb-1">
+                      Amount Payable
+                    </p>
+                    <p className="text-4xl font-extrabold text-[#18360c] mb-3">
+                      ₹{totalAmount}
+                    </p>
+
+                    <span className="inline-block px-3 py-1 bg-[#f3ead8] text-[#7c5e2c] text-[11px] font-bold tracking-wider uppercase rounded-full mb-3">
+                      {paymentMethod === 'UPI' ? 'Instant UPI Redirect' : 'Pay on Delivery'}
+                    </span>
+
+                    <p className="text-xs text-gray-600 leading-relaxed max-w-xs mx-auto">
+                      {paymentMethod === 'UPI'
+                        ? 'You will be securely redirected to complete your UPI payment via Google Pay, PhonePe, or Paytm.'
+                        : 'Reserve your fresh marigold harvest now and pay in cash when your order is delivered.'}
+                    </p>
+                  </div>
+
+                  {/* Single Primary Action Button */}
                   <button
-                    className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${paymentMethod === 'upi' ? 'bg-white text-[#1F3822] shadow-sm' : 'text-gray-500'}`}
-                    onClick={() => setPaymentMethod('upi')}
+                    type="button"
+                    onClick={handleProceedPayment}
+                    disabled={isProcessing}
+                    className="w-full bg-[#18360c] hover:bg-[#112708] disabled:opacity-60 text-white font-bold py-4 rounded-2xl shadow-md transition-all text-sm tracking-wider uppercase"
                   >
-                    UPI Payment
-                  </button>
-                  <button
-                    className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${paymentMethod === 'cod' ? 'bg-white text-[#1F3822] shadow-sm' : 'text-gray-500'}`}
-                    onClick={() => setPaymentMethod('cod')}
-                  >
-                    Cash on Delivery
+                    {isProcessing
+                      ? 'Processing...'
+                      : paymentMethod === 'UPI'
+                      ? `Proceed to Pay ₹${totalAmount}`
+                      : `Confirm COD Order (₹${totalAmount})`}
                   </button>
                 </div>
 
-                <div className="bg-white rounded-3xl p-6 shadow-xl shadow-gray-200/50 flex flex-col items-center border border-gray-100 mb-8 relative">
-
-                  <AnimatePresence mode="wait">
-                    {paymentMethod === 'upi' ? (
-                      (isSubmitting || isVerifyingPayment) ? (
-                        <motion.div key="upi-waiting" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col items-center justify-center py-12 w-full text-center">
-                          <div className="w-12 h-12 border-4 border-gray-200 border-t-[#1F3822] rounded-full animate-spin mb-4"></div>
-                          <h3 className="text-lg font-bold text-gray-800 mb-2">Waiting for Bank SMS Confirmation...</h3>
-                          <p className="text-sm text-gray-500">Please do not close this window.</p>
-                        </motion.div>
-                      ) : (
-                      <motion.div
-                        key="upi-box" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
-                        className="flex flex-col items-center w-full"
-                      >
-                        <div className="flex flex-col items-center justify-center p-6 bg-white rounded-lg shadow-sm border border-gray-200 mt-4">
-                          <p className="mb-4 text-sm font-bold text-gray-800">Total Amount: ₹{totalAmount}</p>
-                          <button 
-                            onClick={handleCashfreePayment} 
-                            className="w-full bg-indigo-600 text-white py-4 rounded-xl font-bold shadow-md hover:bg-indigo-700 transition-colors text-lg"
-                          >
-                            Pay securely via Cashfree
-                          </button>
-                        </div>
-
-                        <a
-                          href={upiString}
-                          className="mt-4 mb-6 flex items-center justify-center w-full py-3 bg-[#1F3822] text-white rounded-lg font-medium shadow-md hover:bg-[#152718] transition-colors"
-                        >
-                          Pay ₹{totalAmount.toLocaleString()} via UPI App
-                        </a>
-
-                        <label className="flex items-start space-x-3 p-3 bg-yellow-50 border border-yellow-200 rounded-lg mb-4 cursor-pointer text-left w-full">
-                          <input
-                            type="checkbox"
-                            checked={hasConfirmedPayment}
-                            onChange={(e) => setHasConfirmedPayment(e.target.checked)}
-                            className="mt-1 w-5 h-5 text-yellow-600 rounded focus:ring-yellow-500 flex-shrink-0"
-                          />
-                          <span className="text-sm text-yellow-800">
-                            <strong>I confirm the transfer is successful.</strong> I understand my order will be cancelled if the payment is not received in the farm's bank account.
-                          </span>
-                        </label>
-
-                        <div className="text-center">
-                          <div className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">Amount Payable</div>
-                          <div className="text-4xl font-bold text-[#1F3822] mb-4">₹{cartTotal.toLocaleString()}</div>
-                          <div className="inline-flex items-center gap-2 bg-amber-50 text-amber-700 px-4 py-1.5 rounded-full text-xs font-bold">
-                            UPI · SECURE PAYMENT
-                          </div>
-                        </div>
-                      </motion.div>
-                      )
-                    ) : (
-                      <motion.div
-                        key="cod-box" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
-                        className="flex flex-col items-center w-full py-8 text-center"
-                      >
-                        <div className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">Amount Payable</div>
-                        <div className="text-4xl font-bold text-[#1F3822] mb-4">₹{cartTotal.toLocaleString()}</div>
-                        <p className="text-gray-500 text-sm mb-4">Please keep exact change ready for a smooth delivery.</p>
-                        <div className="inline-flex items-center gap-2 bg-gray-100 text-gray-600 px-4 py-1.5 rounded-full text-xs font-bold">
-                          PAY ON ARRIVAL
-                        </div>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-
-                </div>
-
-                <div className="flex justify-between items-center border-t border-b border-gray-200 py-4 mb-4">
+                <div className="flex justify-between items-center border-t border-b border-gray-200 py-4 my-6">
                   <div className="w-full text-center">
                     <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Delivery</div>
                     <div className="font-bold text-[#1F3822]">{formData.date || 'Soon'}</div>
@@ -1108,16 +1151,6 @@ const handleGoogleSignIn = async () => {
                 </div>
 
                 <p className="text-center text-xs text-gray-500 font-medium">Need help? Call +91 6304693028</p>
-
-                <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-md bg-white border-t border-gray-100 p-4 pb-8 z-[9999] shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
-                  <button
-                    onClick={handleConfirmOrder}
-                    disabled={isSubmitting || isVerifyingPayment || (paymentMethod === 'upi' && !hasConfirmedPayment)}
-                    className="w-full bg-[#D98310] text-white font-bold text-lg py-4 rounded-xl shadow-lg hover:bg-amber-700 transition-colors uppercase tracking-wide disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                  >
-                    {(isSubmitting || isVerifyingPayment) ? "PROCESSING..." : paymentMethod === 'upi' ? "I Have Completed the Payment" : "CONFIRM ORDER"}
-                  </button>
-                </div>
               </div>
             </motion.div>
           )}
