@@ -107,14 +107,16 @@ export default function BookingFlow() {
       })
         .then((res) => res.json())
         .then((data) => {
-          if (data.verified) {
-            // Clean the URL parameters after updating database
-            window.history.replaceState({}, '', window.location.pathname);
-            if (targetDbId) {
-              supabase.from('orders').select('*').eq('id', targetDbId).single().then(({ data: updatedOrder }) => {
-                if (updatedOrder) setConfirmedOrder({ id: updatedOrder.order_code || updatedOrder.id, ...updatedOrder });
-              });
-            }
+          const finalId = dbOrderId || targetDbId;
+          if (data.verified && finalId) {
+            fetch('/api/notify', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ orderId: finalId }),
+            }).catch((e) => console.error('Notify trigger error:', e));
+
+            window.location.href = `/orders/${finalId}`;
+            return;
           }
         })
         .catch((err) => console.error('Verification error:', err));
@@ -450,22 +452,16 @@ const handleGoogleSignIn = async () => {
             .eq('id', targetId);
 
           if (error) throw error;
+
+          await fetch('/api/notify', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ orderId: targetId }),
+          }).catch((e) => console.error('Notify trigger error:', e));
+
+          window.location.href = `/orders/${targetId}`;
+          return;
         }
-        alert('Order Confirmed! Pay Cash on Delivery when you receive your harvest.');
-        setStep(4);
-        setCart({});
-        setFormData({
-          fullName: '',
-          phone: '',
-          date: '',
-          houseNumber: '',
-          streetName: '',
-          landmark: '',
-          coordinates: [17.5144, 78.6472],
-        });
-        window.scrollTo(0, 0);
-        setIsProcessing(false);
-        return;
       }
 
       // OPTION 2: UPI REDIRECT VIA CASHFREE (Exact flow from video 02:11 - 04:08)

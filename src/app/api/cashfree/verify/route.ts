@@ -49,7 +49,14 @@ export async function POST(req: Request) {
 
       if (error) throw error;
 
-      return NextResponse.json({ verified: true, payment_status: 'completed' });
+      const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL || 'https://harihara-agro.vercel.app').replace(/\/$/, '');
+      fetch(`${siteUrl}/api/notify`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderId: targetDbId }),
+      }).catch((e) => console.error('Notify trigger error:', e));
+
+      return NextResponse.json({ verified: true, payment_status: 'completed', targetDbId });
     }
 
     return NextResponse.json({ verified: false, order_status: data.order_status || 'PENDING' });
