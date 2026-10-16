@@ -3,7 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  process.env.SUPABASE_SERVICE_ROLE_KEY || 'service_role_key_required' // MUST use service role key for backend updates
 );
 
 export async function POST(req: Request) {
@@ -13,8 +13,11 @@ export async function POST(req: Request) {
     if (payload?.data?.payment?.payment_status === 'SUCCESS') {
       const cfOrderId: string = payload.data.order?.order_id || '';
       // Extract the real Supabase row ID from "order_<dbOrderId>_<timestamp>"
-      const parts = cfOrderId.split('_');
-      const dbOrderId = parts.length >= 3 ? parts[1] : cfOrderId;
+      let dbOrderId = cfOrderId;
+      if (cfOrderId.startsWith('order_')) {
+        const parts = cfOrderId.split('_');
+        dbOrderId = parts.length >= 3 ? parts.slice(1, -1).join('_') : parts[1] || cfOrderId;
+      }
 
       const { error } = await supabase
         .from('orders')
@@ -26,6 +29,13 @@ export async function POST(req: Request) {
 
       if (error) {
         console.error('Webhook Supabase Update Error:', error);
+      } else {
+        const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL || 'https://harihara-agro.vercel.app').replace(/\/$/, '');
+        fetch(`${siteUrl}/api/notify`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ orderId: dbOrderId }),
+        }).catch((e) => console.error('Notify trigger error:', e));
       }
     }
 

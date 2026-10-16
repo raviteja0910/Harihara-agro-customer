@@ -24,9 +24,9 @@ type Product = {
 };
 
 const initialProducts: Product[] = [
-  { id: 'premium', tier: 'PREMIUM', name: 'Deep Gold Double', price: 100, image: 'https://images.unsplash.com/photo-1699764681875-dd04ce36b1c3?crop=entropy&cs=tinysrgb&fit=crop&fm=jpg&q=85&w=900', inStock: true },
-  { id: 'medium', tier: 'MEDIUM', name: 'Bright Orange', price: 95, image: 'https://images.unsplash.com/photo-1572711330402-3e16e1ee2ad3?crop=entropy&cs=tinysrgb&fit=crop&fm=jpg&q=85&w=900', inStock: true },
-  { id: 'standard', tier: 'STANDARD', name: 'Yellow Marigold', price: 100, image: 'https://images.unsplash.com/photo-1709987632881-515bb5a53227?w=900&auto=format&fit=crop&q=60&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxzZWFyY2h8MjB8fG1hcmlnb2xkJTIwZmxvd2VyfGVufDB8fDB8fHww', inStock: true },
+  { id: 'premium', tier: 'PREMIUM', name: 'Deep Gold Double', price: 150, image: 'https://images.unsplash.com/photo-1699764681875-dd04ce36b1c3?crop=entropy&cs=tinysrgb&fit=crop&fm=jpg&q=85&w=900', inStock: true },
+  { id: 'medium', tier: 'MEDIUM', name: 'Bright Orange', price: 145, image: 'https://images.unsplash.com/photo-1572711330402-3e16e1ee2ad3?crop=entropy&cs=tinysrgb&fit=crop&fm=jpg&q=85&w=900', inStock: true },
+  { id: 'standard', tier: 'STANDARD', name: 'Yellow Marigold', price: 150, image: 'https://images.unsplash.com/photo-1709987632881-515bb5a53227?w=900&auto=format&fit=crop&q=60&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxzZWFyY2h8MjB8fG1hcmlnb2xkJTIwZmxvd2VyfGVufDB8fDB8fHww', inStock: true },
 ];
 
 export default function BookingFlow() {
@@ -68,7 +68,7 @@ export default function BookingFlow() {
     if (isVerifyingPayment && currentOrderId) {
       interval = setInterval(async () => {
         const { data } = await supabase.from('orders').select('payment_status, order_status').eq('id', currentOrderId).single();
-        if (data && (data.payment_status?.toLowerCase() === 'paid' || data.order_status?.toLowerCase() === 'paid')) {
+        if (data && (data.payment_status?.toLowerCase() === 'paid' || data.payment_status?.toLowerCase() === 'completed' || data.order_status?.toLowerCase() === 'paid')) {
           clearInterval(interval);
           setIsVerifyingPayment(false);
           setStep(4);
